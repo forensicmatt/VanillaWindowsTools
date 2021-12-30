@@ -11,7 +11,7 @@ use winvanilla::WindowsFileList;
 #[global_allocator]
 static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
 
-static VERSION: &str = "0.1.0";
+static VERSION: &str = env!("CARGO_PKG_VERSION");
 
 
 /// Create and return an App that is used to parse the command line params

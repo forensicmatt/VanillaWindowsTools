@@ -1,0 +1,3 @@
+[submodule "VanillaWindowsReference"]
+	path = VanillaWindowsReference
+	url = https://github.com/AndrewRathbun/VanillaWindowsReference

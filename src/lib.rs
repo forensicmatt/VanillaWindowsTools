@@ -9,7 +9,12 @@ use serde_json::{json, Value};
 use encoding::{Encoding, DecoderTrap};
 use encoding::all::{UTF_16LE, UTF_8};
 
-const EXLCUDE_LIST: &'static [&'static str] = &["LastAccessTimeUtc", "LastWriteTimeUtc", "Sddl", "DirectoryName"];
+const EXLCUDE_LIST: &'static [&'static str] = &[
+    "LastAccessTimeUtc",
+    "LastWriteTimeUtc",
+    "Sddl",
+    "DirectoryName"
+];
 
 lazy_static! {
     static ref RE_OS_NAME: Regex = Regex::new(r"(?m)^OS Name:\s*([^\s].+?)\r?$").unwrap();
@@ -153,7 +158,9 @@ impl WindowsFileEntry {
 
 #[derive(Debug, Serialize)]
 pub struct WindowsInfo {
+    #[serde(rename = "OsName")]
     pub name: String,
+    #[serde(rename = "OsVersion")]
     pub version: String,
 }
 impl WindowsInfo {

@@ -1,3 +1,5 @@
+[![Build and Test](https://github.com/forensicmatt/VanillaWindowsTools/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/forensicmatt/VanillaWindowsTools/actions/workflows/tests.yml)
+
 # VanillaWindowsTools
 Tools for parsing and playing with https://github.com/AndrewRathbun/VanillaWindowsReference data
 

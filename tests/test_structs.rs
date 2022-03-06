@@ -1,4 +1,4 @@
-use winvanilla::{WindowsInfo};
+use winvanilla::vanilla::WindowsInfo;
 
 
 #[test]

@@ -1,16 +1,13 @@
-#[macro_use] extern crate log;
+#[macro_use] extern crate rocket;
 use std::process::exit;
+use rocket::State;
+use clap::{App, Arg, ArgMatches};
 use chrono::Local;
 use fern::Dispatch;
 use log::LevelFilter;
-use clap::{App, Arg, ArgMatches};
-use winvanilla::vanilla::WinFileListIterator;
-
-#[cfg(all(windows))]
-#[global_allocator]
-static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
-
-static VERSION: &str = env!("CARGO_PKG_VERSION");
+use winvanilla::index::{WindowRefIndex, WindowsRefIndexReader};
+use winvanilla::service::path::lookup_file_name;
+use winvanilla::service::hash::lookup_hash;
 
 
 /// Create and return an App that is used to parse the command line params
@@ -25,6 +22,14 @@ fn get_argument_parser<'a, 'b>() -> App<'a, 'b> {
         .takes_value(true)
         .help("The source folder");
 
+    let index_arg = Arg::with_name("index_location")
+        .short("-i")
+        .long("index-location")
+        .required(true)
+        .value_name("INDEX_LOCATION")
+        .takes_value(true)
+        .help("The index folder");
+
     let logging_arg = Arg::with_name("logging")
         .long("logging")
         .value_name("LOGGING LEVEL")
@@ -33,14 +38,13 @@ fn get_argument_parser<'a, 'b>() -> App<'a, 'b> {
         .possible_values(&["Off", "Error", "Warn", "Info", "Debug", "Trace"])
         .help("Logging level to use.");
 
-    App::new("vanilla_to_jsonl")
-        .version(VERSION)
+    App::new("vanilla_service")
         .author("Matthew Seyer <https://github.com/forensicmatt/VanillaWindowsTools>")
-        .about("Transform VanillaWindowsReference csv files into JSONL for backends.")
+        .about("Lookup service for VanillaWindows References.")
         .arg(source_arg)
+        .arg(index_arg)
         .arg(logging_arg)
 }
-
 
 /// Set the logging level from the CLI parsed parameters.
 ///
@@ -89,9 +93,14 @@ fn set_logging_level(matches: &ArgMatches){
 }
 
 
-/// The main entry point for this tool.
-///
-fn main() {
+#[get("/")]
+fn index(_index_reader: &State<WindowsRefIndexReader>) -> &'static str {
+    "Hello, world!"
+}
+
+
+#[launch]
+fn rocket() -> _ {
     let arg_parser = get_argument_parser();
     let options = arg_parser.get_matches();
 
@@ -100,17 +109,26 @@ fn main() {
     let source = options.value_of("source")
         .expect("No source folder was provided.");
 
-    let iter = WinFileListIterator::from_path(source);
-    for (location, file_list) in iter {
-        let rec_iter = match file_list.into_iter() {
-            Ok(i) => i,
-            Err(e) => {
-                error!("{}: {}", location.to_string_lossy(), e);
-                continue;
-            }
-        };
-        for record in rec_iter {
-            println!("{}", record);
-        }
+    let index = options.value_of("index_location");
+
+    let index = WindowRefIndex::from_paths(
+        source, 
+        index, 
+        None
+    ).expect("Error creating WindowRefIndex.");
+        
+    let mut writer = index.get_writer()
+        .expect("Error indexing Windows Reference set.");
+
+    if !index.pre_existing {
+        writer.index()
+            .expect("Error creating index.");
     }
+
+    let reader = index.get_reader()
+        .expect("Error getting reader.");
+
+    rocket::build()
+        .manage(reader)
+        .mount("/", routes![index, lookup_file_name, lookup_hash])
 }

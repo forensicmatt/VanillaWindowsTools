@@ -1,0 +1,73 @@
+### Search for a MD5 file hash
+POST http://localhost:8000/api/v1/lookup/hash
+Content-Type: application/json
+
+{"value": "D760CBE8ADA11F064A08D60AF62FD9f2"}
+
+### Search for a SHA256 file hash
+POST http://localhost:8000/api/v1/lookup/hash
+Content-Type: application/json
+
+{"value": "F8568FCA954887E2E1D24AD6EACC256E827D90FF939ADC9C3A262106B8203E04"}
+
+### Search for an invalid file hash
+POST http://localhost:8000/api/v1/lookup/hash
+Content-Type: application/json
+
+{"value": "F8568FCA9547E2E1D24AD6EACC256E827D90FF939ADC9C3A262106B8203E04"}
+
+
+### Search for a file name
+POST http://localhost:8000/api/v1/lookup/name
+Content-Type: application/json
+
+{"value": "cmd1.exe"}
+
+### Search for a file name with known path
+POST http://localhost:8000/api/v1/lookup/name
+Content-Type: application/json
+
+{"value": "cmd.exe", "path": "windows/system32"}
+
+
+### Search for a file name with known path
+POST http://localhost:8000/api/v1/lookup/name
+Content-Type: application/json
+
+{"value": "cmd.exe", "path": "C:/windows/System32"}
+
+### Search for a file name with unknown path
+POST http://localhost:8000/api/v1/lookup/name
+Content-Type: application/json
+
+{"value": "cmd.exe", "path": "windows/system"}
+
+### Search for a file name with unknown path
+POST http://localhost:8000/api/v1/lookup/name
+Content-Type: application/json
+
+{"value": "cmd.exe", "path": "C:/windows/system"}
+
+### Search for a file name
+POST http://localhost:8000/api/v1/lookup/name
+Content-Type: application/json
+
+{"value": "Cmd.exe"}
+
+### Search for a file name
+POST http://localhost:8000/api/v1/lookup/name
+Content-Type: application/json
+
+{"value": "cmd1.exe"}
+
+### Search for a file name with known path
+POST http://localhost:8000/api/v1/lookup/name
+Content-Type: application/json
+
+{"value": "cmd.exe", "path": "windows/system32"}
+
+### Search for a file name with unknown path
+POST http://localhost:8000/api/v1/lookup/name
+Content-Type: application/json
+
+{"value": "cmd.exe", "path": "windows/system"}

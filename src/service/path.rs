@@ -137,7 +137,7 @@ pub fn lookup_file_name(
 }
 
 
-#[post("/api/v1/lookup/name", format="json", data="<name_lookup>")]
+#[post("/api/v1/lookup/fullname", format="json", data="<name_lookup>")]
 pub fn lookup_full_name(
     index_reader: &State<WindowsRefIndexReader>,
     mut name_lookup: Json<FullPathLookup>

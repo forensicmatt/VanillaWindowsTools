@@ -17,6 +17,19 @@ Content-Type: application/json
 {"value": "F8568FCA9547E2E1D24AD6EACC256E827D90FF939ADC9C3A262106B8203E04"}
 
 
+### Search for an unknown full name
+POST http://localhost:8000/api/v1/lookup/fullname
+Content-Type: application/json
+
+{"value": "windows/system32/cmd1.exe"}
+
+### Search for a known full name
+POST http://localhost:8000/api/v1/lookup/fullname
+Content-Type: application/json
+
+{"value": "windows/system32/cmd.exe"}
+
+
 ### Search for a file name
 POST http://localhost:8000/api/v1/lookup/name
 Content-Type: application/json

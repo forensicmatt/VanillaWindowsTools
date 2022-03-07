@@ -8,7 +8,7 @@ use tantivy::query::QueryParser;
 use serde_json::{json, Value};
 use crate::error::VanillaError;
 use crate::tokenizer::RawLowerTokenizer;
-use crate::vanilla::WinFileListIterator;
+use crate::vanilla::{WinFileListIterator, get_system_info_files};
 
 const FIELDS_STRING: &[&'static str] = &["DirectoryName", "Name", "MD5", "SHA256"];
 const FIELDS_EXCLUDE: &[&'static str] = &["Attributes", "Sddl"];
@@ -253,17 +253,20 @@ impl<'a> WindowRefIndexWriter<'a> {
     
     /// Perform index operations
     pub fn index(&mut self) -> Result<(), VanillaError> {
+        let set_count = get_system_info_files(&self.win_ref_index.windows_ref_path).len();
+
         info!(
-            "[starting] Indexing path: {}",
-            &self.win_ref_index.windows_ref_path.to_string_lossy()
+            "[starting] Indexing path: {} [{} data sets]",
+            &self.win_ref_index.windows_ref_path.to_string_lossy(),
+            set_count
         );
 
         let schema = self.win_ref_index.index.schema();
-
         let file_list_iter = WinFileListIterator::from_path(
             &self.win_ref_index.windows_ref_path
         );
-        for (location, file_list) in file_list_iter {
+        for (i, (location, file_list)) in file_list_iter.enumerate() {
+            let i = i + 1;
             // Get the record iterator from the file list
             let record_iter = match file_list.into_iter(){
                 Ok(i) => i,
@@ -276,7 +279,11 @@ impl<'a> WindowRefIndexWriter<'a> {
                 }
             };
 
-            info!("[starting] Indexing path: {}", location.to_string_lossy());
+            info!(
+                "[starting {}/{}] Indexing path: {}",
+                i, set_count,
+                location.to_string_lossy()
+            );
             // Iterate each record
             for mut record in record_iter {
                 let mut doc = Document::new();
@@ -315,7 +322,11 @@ impl<'a> WindowRefIndexWriter<'a> {
             }
             self.index_writer.commit()?;
 
-            info!("[finished] Indexing path: {}", location.to_string_lossy());
+            info!(
+                "[finished {}/{}] Indexing path: {}",
+                i, set_count,
+                location.to_string_lossy()
+            );
         }
 
         info!(

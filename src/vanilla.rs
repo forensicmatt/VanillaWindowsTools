@@ -28,14 +28,17 @@ lazy_static! {
 /// Search a folder for all the SystemInfo_* files.
 /// We assume that each folder that conains this file has an associated
 /// file list.
-fn get_system_info_files(path: impl AsRef<Path>) -> Vec<PathBuf> {
+pub fn get_system_info_files(path: impl AsRef<Path>) -> Vec<PathBuf> {
     let mut paths = Vec::new();
-    for entry in WalkDir::new(path).into_iter().filter_map(|e| e.ok()) {
+    for entry in WalkDir::new(path)
+        .into_iter()
+        .filter_map(|e| e.ok()) 
+    {
         let entry_path = entry.path();
         if !entry_path.is_file() {
             continue;
         }
-        if entry_path.file_name().unwrap().to_string_lossy().starts_with("") {
+        if entry_path.file_name().unwrap().to_string_lossy().starts_with("SystemInfo_") {
             paths.push(entry_path.to_path_buf());
         }
     }

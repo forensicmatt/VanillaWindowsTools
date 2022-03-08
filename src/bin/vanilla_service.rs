@@ -6,7 +6,7 @@ use chrono::Local;
 use fern::Dispatch;
 use log::LevelFilter;
 use winvanilla::index::{WindowRefIndex, WindowsRefIndexReader};
-use winvanilla::service::path::{lookup_file_name, lookup_full_name};
+use winvanilla::service::path::{known_file_name, known_full_name, lookup_file_name, lookup_full_name};
 use winvanilla::service::hash::lookup_hash;
 
 
@@ -130,5 +130,10 @@ fn rocket() -> _ {
 
     rocket::build()
         .manage(reader)
-        .mount("/", routes![index, lookup_file_name, lookup_full_name, lookup_hash])
+        .mount("/", routes![
+            index,
+            known_file_name, known_full_name,
+            lookup_file_name, lookup_full_name,
+            lookup_hash
+        ])
 }

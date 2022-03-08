@@ -1,3 +1,4 @@
+use std::time::{Duration, Instant};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use serde::{Serialize, Deserialize};
@@ -122,26 +123,77 @@ fn resolve(
 }
 
 
+pub fn known_lookup(
+    name_lookup: &FileNameLookup,
+    index_reader: &State<WindowsRefIndexReader>,
+) -> serde_json::Value {
+    let mut result = json!({});
 
-#[post("/api/v1/lookup/name", format="json", data="<name_lookup>")]
-pub fn lookup_file_name(
+    // Create index query
+    let query_known_name = format!("Name:\"{}\"", &name_lookup.value.to_lowercase());
+
+    // Get hits
+    let hits = index_reader.get_query_hits(&query_known_name, 1)
+        .expect("Query error.");
+
+    if hits.len() > 0 {
+        result["KnownName"] = json!(true);
+    } else {
+        result["KnownName"] = json!(false);
+    }
+
+    if let Some(path) = &name_lookup.path {
+        let query_known_path = format!(
+            "Name:\"{}\" AND DirectoryName:\"{}\"", 
+            &name_lookup.value.to_lowercase(), 
+            path.to_lowercase()
+        );
+        // Get hits
+        let hits = index_reader.get_query_hits(&query_known_path, 1)
+            .expect("Query error.");
+        
+        if hits.len() > 0 {
+            result["KnownPath"] = json!(true);
+        } else {
+            result["KnownPath"] = json!(false);
+        }
+    } else {
+        result["KnownPath"] = serde_json::Value::Null;
+    }
+
+    result
+}
+
+
+#[post("/api/v1/known/name", format="json", data="<name_lookup>")]
+pub fn known_file_name(
     index_reader: &State<WindowsRefIndexReader>,
     mut name_lookup: Json<FileNameLookup>
 ) -> serde_json::Value {
+    let start = Instant::now();
+
     if let Some(path) = name_lookup.path.as_mut() {
         *path = path.replace(r"/", r"\");
         *path = path.trim_start_matches(r"\").to_string();
         *path = RE_LETTER.replace(&path, "").to_string();
     }
-    resolve("Name", &name_lookup, index_reader)
+
+    let result = known_lookup(&name_lookup, index_reader);
+
+    let duration = start.elapsed();
+    info!("Time elapsed in known_file_name() is: {:?}", duration);
+
+    result
 }
 
 
-#[post("/api/v1/lookup/fullname", format="json", data="<name_lookup>")]
-pub fn lookup_full_name(
+#[post("/api/v1/known/fullname", format="json", data="<name_lookup>")]
+pub fn known_full_name(
     index_reader: &State<WindowsRefIndexReader>,
     mut name_lookup: Json<FullPathLookup>
 ) -> serde_json::Value {
+    let start = Instant::now();
+
     name_lookup.value = name_lookup.value.replace(r"/", r"\");
     name_lookup.value = name_lookup.value.trim_start_matches(r"\").to_string();
     name_lookup.value = RE_LETTER.replace(&name_lookup.value, "").to_string();
@@ -150,5 +202,59 @@ pub fn lookup_full_name(
         .as_file_name_lookup()
         .expect("Error converting FullPathLookup to FileNameLookup");
 
-    resolve("Name", &name_lookup, index_reader)
+    let result = known_lookup(&name_lookup, index_reader);
+
+    let duration = start.elapsed();
+    info!("Time elapsed in known_full_name() is: {:?}", duration);
+
+    result
+}
+
+
+#[post("/api/v1/lookup/name", format="json", data="<name_lookup>")]
+pub fn lookup_file_name(
+    index_reader: &State<WindowsRefIndexReader>,
+    mut name_lookup: Json<FileNameLookup>
+) -> serde_json::Value {
+    let start = Instant::now();
+
+    if let Some(path) = name_lookup.path.as_mut() {
+        *path = path.replace(r"/", r"\");
+        *path = path.trim_start_matches(r"\").to_string();
+        *path = RE_LETTER.replace(&path, "").to_string();
+    }
+    let result = resolve("Name", &name_lookup, index_reader);
+
+    let duration = start.elapsed();
+    info!("Time elapsed in lookup_file_name() is: {:?}", duration);
+
+    result
+}
+
+
+#[post("/api/v1/lookup/fullname", format="json", data="<name_lookup>")]
+pub fn lookup_full_name(
+    index_reader: &State<WindowsRefIndexReader>,
+    mut name_lookup: Json<FullPathLookup>
+) -> serde_json::Value {
+    let start = Instant::now();
+
+    name_lookup.value = name_lookup.value.replace(r"/", r"\");
+    name_lookup.value = name_lookup.value.trim_start_matches(r"\").to_string();
+    name_lookup.value = RE_LETTER.replace(&name_lookup.value, "").to_string();
+
+    let name_lookup = name_lookup.into_inner()
+        .as_file_name_lookup()
+        .expect("Error converting FullPathLookup to FileNameLookup");
+
+    let result = resolve(
+        "Name",
+        &name_lookup,
+        index_reader
+    );
+
+    let duration = start.elapsed();
+    info!("Time elapsed in lookup_full_name() is: {:?}", duration);
+
+    result
 }

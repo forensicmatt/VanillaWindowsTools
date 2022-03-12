@@ -1,5 +1,5 @@
 ### Search lookup api for a MD5 file hash
-POST http://localhost:8000/api/v1/lookup/hash
+POST http://localhost:8001/api/v1/lookup/hash
 Content-Type: application/json
 
 {"value": "D760CBE8ADA11F064A08D60AF62FD9f2"}
@@ -34,7 +34,13 @@ Content-Type: application/json
 POST http://localhost:8000/api/v1/known/fullname
 Content-Type: application/json
 
-{"value": "windows/system32/cmd.exe"}
+{"value": "windows/explore.exe"}
+
+### Search known api for a known full name
+POST http://localhost:8000/api/v1/known/fullname
+Content-Type: application/json
+
+{"value": "windows/system32/explore.exe"}
 
 
 ### Search lookup api for a file name
@@ -55,33 +61,28 @@ Content-Type: application/json
 
 {"value": "cmd.exe", "path": "windows/system32"}
 
-### Search known api for a file name with known path
-POST http://localhost:8000/api/v1/known/name
-Content-Type: application/json
-
-{"value": "cmd.exe", "path": "windows/system32"}
-
 
 ### Search lookup api for a file name with known path
+### using C:\ syntax
 POST http://localhost:8000/api/v1/lookup/name
 Content-Type: application/json
 
 {"value": "cmd.exe", "path": "C:/windows/System32"}
 
+### Search lookup api for a file name with known path
+POST http://localhost:8000/api/v1/lookup/name
+Content-Type: application/json
+
+{"value": "explorer.exe", "path": "windows"}
+
 ### Search lookup api for a file name with unknown path
 POST http://localhost:8000/api/v1/lookup/name
 Content-Type: application/json
 
-{"value": "cmd.exe", "path": "windows/system"}
-
-### Search lookup api for a file name with unknown path
-POST http://localhost:8000/api/v1/lookup/name
-Content-Type: application/json
-
-{"value": "cmd.exe", "path": "C:/windows/system"}
+{"value": "explorer.exe", "path": "windows/system32"}
 
 ### Search lookup api for a file name
-POST http://localhost:8000/api/v1/lookup/name
+POST http://127.0.0.1:8000/api/v1/lookup/name
 Content-Type: application/json
 
 {"value": "Cmd.exe"}

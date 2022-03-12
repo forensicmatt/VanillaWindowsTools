@@ -1,6 +1,9 @@
 #[macro_use] extern crate rocket;
 use std::process::exit;
-use rocket::State;
+use std::net::IpAddr;
+use std::str::FromStr;
+use rocket::{State, config};
+use rocket::config::Config;
 use clap::{App, Arg, ArgMatches};
 use chrono::Local;
 use fern::Dispatch;
@@ -30,6 +33,24 @@ fn get_argument_parser<'a, 'b>() -> App<'a, 'b> {
         .takes_value(true)
         .help("The index folder");
 
+    let address_arg = Arg::with_name("address")
+        .short("-a")
+        .long("address")
+        .required(false)
+        .value_name("IPADDRESS")
+        .takes_value(true)
+        .default_value("127.0.0.1")
+        .help("Specific ip address.");
+
+    let port_arg = Arg::with_name("port")
+        .short("-p")
+        .long("port")
+        .required(false)
+        .value_name("PORT")
+        .takes_value(true)
+        .default_value("8000")
+        .help("Specific port.");
+
     let logging_arg = Arg::with_name("logging")
         .long("logging")
         .value_name("LOGGING LEVEL")
@@ -43,6 +64,8 @@ fn get_argument_parser<'a, 'b>() -> App<'a, 'b> {
         .about("Lookup service for VanillaWindows References.")
         .arg(source_arg)
         .arg(index_arg)
+        .arg(address_arg)
+        .arg(port_arg)
         .arg(logging_arg)
 }
 
@@ -109,6 +132,14 @@ fn rocket() -> _ {
     let source = options.value_of("source")
         .expect("No source folder was provided.");
 
+    let port = options.value_of("port")
+        .map(|v| v.parse::<u16>().expect("port cannot be parsed as u16."))
+        .expect("No port provided.");
+
+    let address: IpAddr = options.value_of("address")
+        .map(|v|IpAddr::from_str(v).expect("Could not parse IP Address."))
+        .expect("No IpAddress provided.");
+
     let index = options.value_of("index_location");
 
     let index = WindowRefIndex::from_paths(
@@ -128,7 +159,14 @@ fn rocket() -> _ {
     let reader = index.get_reader()
         .expect("Error getting reader.");
 
-    rocket::build()
+
+    let mut config = Config::release_default();
+    // Set port
+    config.port = port;
+    // Set address
+    config.address = address;
+
+    rocket::custom(config)
         .manage(reader)
         .mount("/", routes![
             index,

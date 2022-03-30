@@ -4,7 +4,7 @@ use chrono::Local;
 use fern::Dispatch;
 use log::LevelFilter;
 use clap::{App, Arg, ArgMatches};
-use winvanilla::vanilla::WinFileListIterator;
+use winvanilla::index::WindowRefIndex;
 
 #[cfg(all(windows))]
 #[global_allocator]
@@ -24,6 +24,14 @@ fn get_argument_parser<'a, 'b>() -> App<'a, 'b> {
         .value_name("SOURCE")
         .takes_value(true)
         .help("The source folder");
+    
+    let index_arg = Arg::with_name("index_location")
+        .short("-i")
+        .long("index-location")
+        .required(true)
+        .value_name("INDEX_LOCATION")
+        .takes_value(true)
+        .help("The index folder");
 
     let logging_arg = Arg::with_name("logging")
         .long("logging")
@@ -33,11 +41,12 @@ fn get_argument_parser<'a, 'b>() -> App<'a, 'b> {
         .possible_values(&["Off", "Error", "Warn", "Info", "Debug", "Trace"])
         .help("Logging level to use.");
 
-    App::new("vanilla_to_jsonl")
+    App::new("vanilla_index")
         .version(VERSION)
         .author("Matthew Seyer <https://github.com/forensicmatt/VanillaWindowsTools>")
-        .about("Transform VanillaWindowsReference csv files into JSONL for backends.")
+        .about("Index VanillaWindowsReference files.")
         .arg(source_arg)
+        .arg(index_arg)
         .arg(logging_arg)
 }
 
@@ -100,17 +109,14 @@ fn main() {
     let source = options.value_of("source")
         .expect("No source folder was provided.");
 
-    let iter = WinFileListIterator::from_path(source);
-    for (location, file_list) in iter {
-        let rec_iter = match file_list.into_iter() {
-            Ok(i) => i,
-            Err(e) => {
-                error!("{}: {}", location.to_string_lossy(), e);
-                continue;
-            }
-        };
-        for record in rec_iter {
-            println!("{}", record);
-        }
-    }
+    let index = options.value_of("index_location");
+
+    let index = WindowRefIndex::from_paths(
+        source, 
+        index, 
+        None
+    ).unwrap();
+
+    let mut writer = index.get_writer().expect("Error getting writer.");
+    writer.index().unwrap();
 }

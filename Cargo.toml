@@ -17,7 +17,32 @@ walkdir = "2.3.2"
 csv = "1.1.6"
 encoding = "0.2.33"
 rpmalloc = "0.2.0"
+tantivy = "0.16.1"
 
 [dependencies.serde]
 version = "1.0"
 features = ["derive"]
+
+[dependencies.rocket]
+version = "0.5.0-rc.1"
+optional = true
+features = ["json"]
+
+
+[target.'cfg(not(windows))'.dependencies]
+jemallocator = { version = "0.3.2"}
+
+[target.'cfg(windows)'.dependencies]
+rpmalloc = { version = "0.2.0"}
+
+
+[features]
+service = ["rocket"]
+default = ["service"]
+
+
+[[bin]]
+name = "vanillawinrefs_to_jsonl"
+
+[[bin]]
+name = "vanilla_service"

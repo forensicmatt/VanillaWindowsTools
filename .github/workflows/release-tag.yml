@@ -98,19 +98,33 @@ jobs:
         shell: bash
         run: |
           if [ "${{ matrix.build }}" = "windows" ]; then
-            echo "ASSET=target/${{ matrix.target }}/release/vanillawinrefs_to_jsonl.exe" >> $GITHUB_ENV
-            echo "ASSET_NAME=vanillawinrefs_to_jsonl-${{ env.RELEASE_VERSION }}.exe" >> $GITHUB_ENV
+            echo "ASSET1=target/${{ matrix.target }}/release/vanillawinrefs_to_jsonl.exe" >> $GITHUB_ENV
+            echo "ASSET2=target/${{ matrix.target }}/release/vanilla_service.exe" >> $GITHUB_ENV
+            echo "ASSET1_NAME=vanillawinrefs_to_jsonl-${{ env.RELEASE_VERSION }}.exe" >> $GITHUB_ENV
+            echo "ASSET2_NAME=vanilla_service-${{ env.RELEASE_VERSION }}.exe" >> $GITHUB_ENV
           else
-            echo "ASSET=target/${{ matrix.target }}/release/vanillawinrefs_to_jsonl" >> $GITHUB_ENV
-            echo "ASSET_NAME=vanillawinrefs_to_jsonl-${{ env.RELEASE_VERSION }}-${{ matrix.target }}" >> $GITHUB_ENV
+            echo "ASSET1=target/${{ matrix.target }}/release/vanillawinrefs_to_jsonl" >> $GITHUB_ENV
+            echo "ASSET2=target/${{ matrix.target }}/release/vanilla_service" >> $GITHUB_ENV
+            echo "ASSET1_NAME=vanillawinrefs_to_jsonl-${{ env.RELEASE_VERSION }}-${{ matrix.target }}" >> $GITHUB_ENV
+            echo "ASSET2_NAME=vanilla_service-${{ env.RELEASE_VERSION }}-${{ matrix.target }}" >> $GITHUB_ENV
           fi
 
-      - name: Upload release archive
+      - name: Upload release archive 1
         uses: actions/upload-release-asset@v1.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ env.RELEASE_UPLOAD_URL }}
-          asset_path: ${{ env.ASSET }}
-          asset_name: ${{ env.ASSET_NAME }}
+          asset_path: ${{ env.ASSET1 }}
+          asset_name: ${{ env.ASSET1_NAME }}
+          asset_content_type: application/octet-stream
+
+      - name: Upload release archive 2
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ env.RELEASE_UPLOAD_URL }}
+          asset_path: ${{ env.ASSET2 }}
+          asset_name: ${{ env.ASSET2_NAME }}
           asset_content_type: application/octet-stream

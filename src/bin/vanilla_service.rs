@@ -128,8 +128,8 @@ fn set_logging_level(matches: &ArgMatches){
 
 
 #[get("/")]
-fn index(_index_reader: &State<WindowsRefIndexReader>) -> &'static str {
-    "Hello, world!"
+fn index(_index_reader: &State<WindowsRefIndexReader>) {
+    
 }
 
 

@@ -3,7 +3,16 @@
 # VanillaWindowsTools
 Tools for parsing and playing with https://github.com/AndrewRathbun/VanillaWindowsReference data
 
-# vanilla_to_json
+## vanilla_service
+This service will run a web service which exposes a REST api for lookups.
+
+```
+> target\release\vanilla_service.exe -i F:\testing\index -s .\VanillaWindowsReference
+```
+
+See `/examples.rest` for examples.
+
+## vanilla_to_json
 This tool will match up the SystemInfo file with the respected csv file listing and print jsonl representation.
 
 This tool currently excludes the following csv fields (will work to make this configurable via the cli): 

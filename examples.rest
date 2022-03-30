@@ -1,5 +1,5 @@
 ### Search lookup api for a MD5 file hash
-POST http://localhost:8001/api/v1/lookup/hash
+POST http://localhost:8000/api/v1/lookup/hash
 Content-Type: application/json
 
 {"value": "D760CBE8ADA11F064A08D60AF62FD9f2"}
@@ -40,7 +40,7 @@ Content-Type: application/json
 POST http://localhost:8000/api/v1/known/fullname
 Content-Type: application/json
 
-{"value": "windows/system32/explore.exe"}
+{"value": "windows/system32/explorer.exe"}
 
 
 ### Search lookup api for a file name

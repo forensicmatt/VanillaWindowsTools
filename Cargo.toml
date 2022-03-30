@@ -29,6 +29,13 @@ optional = true
 features = ["json"]
 
 
+[target.'cfg(not(windows))'.dependencies]
+jemallocator = { version = "0.3.2"}
+
+[target.'cfg(windows)'.dependencies]
+rpmalloc = { version = "0.2.0"}
+
+
 [features]
 service = ["rocket"]
 default = ["service"]

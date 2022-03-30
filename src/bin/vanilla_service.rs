@@ -12,6 +12,17 @@ use winvanilla::index::{WindowRefIndex, WindowsRefIndexReader};
 use winvanilla::service::path::{known_file_name, known_full_name, lookup_file_name, lookup_full_name};
 use winvanilla::service::hash::lookup_hash;
 
+#[cfg(all(feature = "fast-alloc", not(windows)))]
+use jemallocator::Jemalloc;
+
+#[cfg(all(feature = "fast-alloc", not(windows)))]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
+
+#[cfg(all(feature = "fast-alloc", windows))]
+#[global_allocator]
+static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
+
 
 /// Create and return an App that is used to parse the command line params
 /// that were specified by the user.

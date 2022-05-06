@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::env::temp_dir;
 use std::collections::HashSet;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use tantivy::schema::*;
 use tantivy::{Index, Document, IndexWriter, IndexReader};
 use tantivy::collector::TopDocs;
@@ -8,7 +9,7 @@ use tantivy::query::QueryParser;
 use serde_json::{json, Value};
 use crate::error::VanillaError;
 use crate::tokenizer::RawLowerTokenizer;
-use crate::vanilla::{WinFileListIterator, get_system_info_files};
+use crate::vanilla::{WindowsFileList, WinFileListIterator, get_system_info_files};
 
 const FIELDS_STRING: &[&'static str] = &["DirectoryName", "Name", "MD5", "SHA256"];
 const FIELDS_EXCLUDE: &[&'static str] = &["Attributes", "Sddl"];
@@ -66,6 +67,70 @@ fn get_schema(path: impl AsRef<Path>) -> Schema {
     schema_builder.build()
 }
 
+fn index(
+    set_count: usize,
+    tuple: &(usize, PathBuf, WindowsFileList),
+    index_writer: &IndexWriter,
+    schema: &Schema
+) -> Result<(), VanillaError> {
+    let (i, location, file_list) = tuple;
+
+    let i = i + 1;
+            
+    // Get the record iterator from the file list
+    let record_iter = file_list.into_iter()
+        .map_err(|e| VanillaError::from_message(e))?;
+
+    info!(
+        "[starting {}/{}] Indexing path: {}",
+        i, set_count,
+        location.to_string_lossy()
+    );
+    // Iterate each record
+    for mut record in record_iter {
+        let mut doc = Document::new();
+        // index conversions (all in lowercase)
+        if let Some(n) = record["DirectoryName"].as_str() {
+            record["DirectoryName"] = json!(n[3..]);
+        }
+        if let Some(n) = record["FullName"].as_str() {
+            record["FullName"] = json!(n[3..]);
+        }
+        if let Some(n) = record["MD5"].as_str() {
+            record["MD5"] = json!(n);
+        }
+        if let Some(n) = record["SHA256"].as_str() {
+            record["SHA256"] = json!(n);
+        }
+
+        for (field, field_entry) in schema.fields() {
+            let field_name = field_entry.name();
+
+            // Skip indexing excluded fields
+            if FIELDS_EXCLUDE.contains(&field_name) {
+                continue
+            }
+            if let Some(field_value) = record.get(field_name) {
+                if let Some(fv_str) = field_value.as_str() {
+                    doc.add_text(
+                        field,
+                        fv_str
+                    );
+                }
+            }
+        }
+
+        index_writer.add_document(doc);
+    }
+
+    info!(
+        "[finished {}/{}] Indexing path: {}",
+        i, set_count,
+        location.to_string_lossy()
+    );
+
+    Ok(())
+}
 
 #[derive(Clone)]
 pub struct WindowsRefIndexOptions {
@@ -250,6 +315,38 @@ impl<'a> WindowRefIndexWriter<'a> {
             index_writer
         })
     }
+
+    /// MT indexing
+    pub fn index_mt(&mut self) -> Result<(), VanillaError> {
+        let file_list_iter = WinFileListIterator::from_path(
+            &self.win_ref_index.windows_ref_path
+        );
+
+        let schema = self.win_ref_index.index.schema();
+
+        let mut actions = Vec::new();
+        for (i, (location, file_list)) in file_list_iter.enumerate() {
+            actions.push((i, location, file_list));
+        }
+
+        let size = actions.len();
+        actions.par_iter()
+            .for_each(|t|{
+                if let Err(e) = index(
+                    size, 
+                    t,
+                    &self.index_writer,
+                    &schema
+                ) {
+                    error!("{:?}", e);
+                }
+            });
+
+        self.index_writer.commit()?;
+
+
+        Ok(())
+    }
     
     /// Perform index operations
     pub fn index(&mut self) -> Result<(), VanillaError> {
@@ -267,6 +364,7 @@ impl<'a> WindowRefIndexWriter<'a> {
         );
         for (i, (location, file_list)) in file_list_iter.enumerate() {
             let i = i + 1;
+
             // Get the record iterator from the file list
             let record_iter = match file_list.into_iter(){
                 Ok(i) => i,

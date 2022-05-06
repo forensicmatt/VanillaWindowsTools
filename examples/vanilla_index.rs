@@ -118,5 +118,5 @@ fn main() {
     ).unwrap();
 
     let mut writer = index.get_writer().expect("Error getting writer.");
-    writer.index().unwrap();
+    writer.index_mt().unwrap();
 }

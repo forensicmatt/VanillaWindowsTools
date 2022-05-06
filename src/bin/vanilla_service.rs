@@ -46,6 +46,15 @@ fn get_argument_parser<'a, 'b>() -> App<'a, 'b> {
         .value_name("INDEX_LOCATION")
         .takes_value(true)
         .help("The index folder");
+    
+    let overall_memory_arg = Arg::with_name("overall_memory")
+        .short("-m")
+        .long("overall_memory")
+        .required(false)
+        .default_value("100000000")
+        .value_name("MEMORY_SIZE")
+        .takes_value(true)
+        .help("The total target memory usage that will be split between writer threads.");
 
     let address_arg = Arg::with_name("address")
         .short("-a")
@@ -78,6 +87,7 @@ fn get_argument_parser<'a, 'b>() -> App<'a, 'b> {
         .about("Lookup service for VanillaWindows References.")
         .arg(source_arg)
         .arg(index_arg)
+        .arg(overall_memory_arg)
         .arg(address_arg)
         .arg(port_arg)
         .arg(logging_arg)
@@ -143,6 +153,9 @@ fn rocket() -> _ {
 
     set_logging_level(&options);
 
+    let overall_memory: usize = options.value_of("overall_memory")
+        .map_or(100_000_000, |v| v.parse::<usize>().expect("Unable to parse overall_memory as usize!"));
+
     let source = options.value_of("source")
         .expect("No source folder was provided.");
 
@@ -158,17 +171,17 @@ fn rocket() -> _ {
         .expect("No index_location provided.");
     let index_location = Path::new(index_location);
 
-    if !index_location.is_dir() {
+    if !index_location.exists() {
+        std::fs::create_dir_all(index_location)
+            .expect("Error creating index_location");
+    } else if !index_location.is_dir() {
         eprintln!("{} is not a directory!", index_location.to_string_lossy());
         exit(1);
     }
 
-    let (index, schema) = match Index::open_in_dir(index_location) {
-        Ok(i) => {
-            let s = i.schema().clone();
-            (i, s)
-        },
-        Err(e) => {
+    let index = match Index::open_in_dir(index_location) {
+        Ok(i) => i,
+        Err(_e) => {
             let schema = generate_schema_from_vanilla(source)
                 .expect("Error generating schema from vanilla path.");
 
@@ -180,7 +193,13 @@ fn rocket() -> _ {
             let index = Index::create(index_directory, schema.clone(), settings)
                 .expect("Error opening or creating index.");
 
-            (index, schema)
+            let mut writer = WindowRefIndexWriter::from_index(source, index.clone(), overall_memory)
+                .expect("Error creating WindowRefIndexWriter!");
+        
+            writer.delete_all_documents(true).expect("Error deleting documents!");
+            writer.index_mt().expect("Error indexing documents!");
+
+            index
         }
     };
 

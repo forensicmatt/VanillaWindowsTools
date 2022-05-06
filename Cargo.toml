@@ -17,7 +17,7 @@ walkdir = "2.3.2"
 csv = "1.1.6"
 encoding = "0.2.33"
 rpmalloc = "0.2.0"
-tantivy = "0.16.1"
+tantivy = "0.17"
 rayon = "1.5.1"
 git2 = "0.14"
 
@@ -41,10 +41,3 @@ rpmalloc = { version = "0.2.0"}
 [features]
 service = ["rocket"]
 default = ["service"]
-
-
-[[bin]]
-name = "vanillawinrefs_to_jsonl"
-
-[[bin]]
-name = "vanilla_service"

@@ -1,5 +1,6 @@
 #[macro_use] extern crate rocket;
 use std::process::exit;
+use std::path::Path;
 use std::net::IpAddr;
 use std::str::FromStr;
 use rocket::{State, config};
@@ -8,7 +9,9 @@ use clap::{App, Arg, ArgMatches};
 use chrono::Local;
 use fern::Dispatch;
 use log::LevelFilter;
-use winvanilla::index::{WindowRefIndex, WindowsRefIndexReader};
+use tantivy::{Index, IndexSettings};
+use tantivy::directory::MmapDirectory;
+use winvanilla::index::{generate_schema_from_vanilla, WindowsRefIndexReader, WindowRefIndexWriter};
 use winvanilla::service::path::{known_file_name, known_full_name, lookup_file_name, lookup_full_name};
 use winvanilla::service::hash::lookup_hash;
 
@@ -151,25 +154,38 @@ fn rocket() -> _ {
         .map(|v|IpAddr::from_str(v).expect("Could not parse IP Address."))
         .expect("No IpAddress provided.");
 
-    let index = options.value_of("index_location");
+    let index_location = options.value_of("index_location")
+        .expect("No index_location provided.");
+    let index_location = Path::new(index_location);
 
-    let index = WindowRefIndex::from_paths(
-        source, 
-        index, 
-        None
-    ).expect("Error creating WindowRefIndex.");
-        
-    let mut writer = index.get_writer()
-        .expect("Error indexing Windows Reference set.");
-
-    if !index.pre_existing {
-        writer.index()
-            .expect("Error creating index.");
+    if !index_location.is_dir() {
+        eprintln!("{} is not a directory!", index_location.to_string_lossy());
+        exit(1);
     }
 
-    let reader = index.get_reader()
-        .expect("Error getting reader.");
+    let (index, schema) = match Index::open_in_dir(index_location) {
+        Ok(i) => {
+            let s = i.schema().clone();
+            (i, s)
+        },
+        Err(e) => {
+            let schema = generate_schema_from_vanilla(source)
+                .expect("Error generating schema from vanilla path.");
 
+            let index_directory = MmapDirectory::open(index_location)
+                .expect("Error opening index_location");
+            
+            let settings = IndexSettings::default();
+
+            let index = Index::create(index_directory, schema.clone(), settings)
+                .expect("Error opening or creating index.");
+
+            (index, schema)
+        }
+    };
+
+    let reader = WindowsRefIndexReader::try_from(index)
+        .expect("Error creating WindowsRefIndexReader!");
 
     let mut config = Config::release_default();
     // Set port

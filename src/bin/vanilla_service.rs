@@ -3,15 +3,22 @@ use std::process::exit;
 use std::path::Path;
 use std::net::IpAddr;
 use std::str::FromStr;
-use rocket::{State, config};
+use std::path::PathBuf;
+use rocket::{State};
 use rocket::config::Config;
 use clap::{App, Arg, ArgMatches};
 use chrono::Local;
 use fern::Dispatch;
 use log::LevelFilter;
+use tempfile::TempDir;
 use tantivy::{Index, IndexSettings};
 use tantivy::directory::MmapDirectory;
-use winvanilla::index::{generate_schema_from_vanilla, WindowsRefIndexReader, WindowRefIndexWriter};
+use winvanilla::index::{
+    clone_vanilla_reference_repo,
+    generate_schema_from_vanilla,
+    WindowsRefIndexReader,
+    WindowRefIndexWriter
+};
 use winvanilla::service::path::{known_file_name, known_full_name, lookup_file_name, lookup_full_name};
 use winvanilla::service::hash::lookup_hash;
 
@@ -34,10 +41,10 @@ fn get_argument_parser<'a, 'b>() -> App<'a, 'b> {
     let source_arg = Arg::with_name("source")
         .short("-s")
         .long("source")
-        .required(true)
+        .required(false)
         .value_name("SOURCE")
         .takes_value(true)
-        .help("The source folder");
+        .help("The source folder (otherwise a temp folder will be used and clone the Vanilla repo.)");
 
     let index_arg = Arg::with_name("index_location")
         .short("-i")
@@ -156,8 +163,18 @@ fn rocket() -> _ {
     let overall_memory: usize = options.value_of("overall_memory")
         .map_or(100_000_000, |v| v.parse::<usize>().expect("Unable to parse overall_memory as usize!"));
 
-    let source = options.value_of("source")
-        .expect("No source folder was provided.");
+    let (source, _temp_dir): (PathBuf, Option<Box<TempDir>>) = options.value_of("source")
+        .map(|v|(PathBuf::from(v), None))
+        .unwrap_or_else(move ||{
+            let temp_dir = Box::new(
+                TempDir::new()
+                    .expect("Error creating temp dir for source.")
+            );
+            let path = temp_dir.path().to_path_buf();
+            (path, Some(temp_dir))
+        });
+
+    eprintln!("source: {}", &source.to_string_lossy());
 
     let port = options.value_of("port")
         .map(|v| v.parse::<u16>().expect("port cannot be parsed as u16."))
@@ -179,10 +196,26 @@ fn rocket() -> _ {
         exit(1);
     }
 
+    match source.read_dir() {
+        Ok(r) => {
+            if r.count() == 0 {
+                // There are no files in this directory, we should clone the repo.
+                clone_vanilla_reference_repo(&source)
+                    .expect("Error cloning vanilla repo from folder that has no entries.");
+            }
+        },
+        Err(_e) => {
+            eprintln!("cloning vanilla repo");
+            clone_vanilla_reference_repo(&source)
+                .expect("Error cloning vanilla repo.");
+        }
+    }
+    eprintln!("init vanilla data");
+
     let index = match Index::open_in_dir(index_location) {
         Ok(i) => i,
         Err(_e) => {
-            let schema = generate_schema_from_vanilla(source)
+            let schema = generate_schema_from_vanilla(&source)
                 .expect("Error generating schema from vanilla path.");
 
             let index_directory = MmapDirectory::open(index_location)
@@ -193,7 +226,7 @@ fn rocket() -> _ {
             let index = Index::create(index_directory, schema.clone(), settings)
                 .expect("Error opening or creating index.");
 
-            let mut writer = WindowRefIndexWriter::from_index(source, index.clone(), overall_memory)
+            let mut writer = WindowRefIndexWriter::from_index(&source, index.clone(), overall_memory)
                 .expect("Error creating WindowRefIndexWriter!");
         
             writer.delete_all_documents(true).expect("Error deleting documents!");

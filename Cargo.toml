@@ -20,6 +20,7 @@ rpmalloc = "0.2.0"
 tantivy = "0.17"
 rayon = "1.5.1"
 git2 = "0.14"
+tempfile = "3.3.0"
 
 [dependencies.serde]
 version = "1.0"

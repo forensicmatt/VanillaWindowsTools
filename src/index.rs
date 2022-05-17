@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::collections::HashSet;
+use git2::Repository;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use tantivy::schema::*;
 use tantivy::{Index, Document, IndexWriter, IndexReader};
@@ -16,6 +17,15 @@ const FIELDS_STRING: &[&'static str] = &["DirectoryName", "Name", "MD5", "SHA256
 const FIELDS_EXCLUDE: &[&'static str] = &["Attributes", "Sddl"];
 
 type SearchQuery = (LeasedItem<Searcher>, Box<(dyn tantivy::query::Query + 'static)>);
+
+
+/// Clone the VanillaReference folder
+pub fn clone_vanilla_reference_repo(
+    destination: impl AsRef<Path>
+) -> Result<(), VanillaError> {
+    Repository::clone("https://github.com/AndrewRathbun/VanillaWindowsReference", destination)?;
+    Ok(())
+}
 
 
 /// Get the list of fields that should be added to the index.
@@ -227,7 +237,7 @@ impl WindowRefIndexWriter {
         index: Index,
         memory_arena_num_bytes: usize
     ) -> Result<Self, TantivyError> {
-        let vanilla_path = vanilla_path.as_ref().to_path_buf();
+        let vanilla_path = vanilla_path.as_ref().to_path_buf().clone();
 
         // Register our custom Tokenizer
         index.tokenizers()

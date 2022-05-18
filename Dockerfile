@@ -17,7 +17,8 @@ COPY ./src ./src
 # Rebuild with newest source
 RUN cargo build --release
 
-FROM debian/buster-slim AS service
+FROM debian:buster-slim AS service
+RUN apt update && apt install -y libssl-dev ca-certificates
 WORKDIR /vanilla
-COPY --from=builder /source/service/target/vanilla_service ./vanilla_service
-CMD ./vanilla_service -i ./vanilla/index
+COPY --from=builder /source/service/target/release/vanilla_service ./vanilla_service
+CMD ./vanilla_service -i ./index -s ./data -a 0.0.0.0

@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::collections::HashSet;
-use git2::Repository;
+use git2::build::RepoBuilder;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use tantivy::schema::*;
 use tantivy::{Index, Document, IndexWriter, IndexReader};
@@ -23,7 +23,9 @@ type SearchQuery = (LeasedItem<Searcher>, Box<(dyn tantivy::query::Query + 'stat
 pub fn clone_vanilla_reference_repo(
     destination: impl AsRef<Path>
 ) -> Result<(), VanillaError> {
-    Repository::clone("https://github.com/AndrewRathbun/VanillaWindowsReference", destination)?;
+    RepoBuilder::new()
+        .clone("https://github.com/AndrewRathbun/VanillaWindowsReference", &destination.as_ref())?;
+
     Ok(())
 }
 

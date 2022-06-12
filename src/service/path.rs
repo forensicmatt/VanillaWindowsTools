@@ -21,6 +21,15 @@ pub struct FileNameLookup {
     value: String,
     path: Option<String>
 }
+impl FileNameLookup {
+    fn get_lookup_path(&self) -> Option<String> {
+        if let Some(path) = &self.path {
+            Some(path.replace(r"/", r"\").to_lowercase())
+        } else {
+            None
+        }
+    }
+}
 
 
 #[derive(Deserialize, Serialize)]
@@ -30,7 +39,8 @@ pub struct FullPathLookup {
 }
 impl FullPathLookup {
     fn as_file_name_lookup(&self) -> Result<FileNameLookup, VanillaError> {
-        let full_path = Path::new(&self.value);
+        let os_path = self.as_os_path();
+        let full_path = Path::new(&os_path);
 
         let value = full_path.file_name()
             .ok_or(VanillaError::from_message(
@@ -47,6 +57,13 @@ impl FullPathLookup {
             .to_string();
 
         Ok( FileNameLookup { value, path: Some(path) })
+    }
+
+    fn as_os_path(&self) -> String {
+        #[cfg(target_family="windows")]
+        {self.value.replace("/", r"\")}
+        #[cfg(not(target_family="windows"))]
+        {self.value.replace(r"\", "/")}
     }
 }
 
@@ -99,16 +116,13 @@ fn resolve(
     }
 
     let mut return_value = json!(aggregation);
-    if let Some(path) = &lookup.path {
+    if let Some(path) = &lookup.get_lookup_path() {
         if let Some(dir_names) = aggregation.get("DirectoryName") {
             let lower_paths = dir_names.iter()
                 .map(|v|v.to_lowercase())
                 .collect::<Vec<String>>();
-            
-            let search_v = &path.to_lowercase()
-                .replace(r"/", r"\");
 
-            if lower_paths.contains(search_v) {
+            if lower_paths.contains(path) {
                 known_path = Some(true);
             } else {
                 known_path = Some(false);
@@ -142,11 +156,11 @@ pub fn known_lookup(
         result["KnownName"] = json!(false);
     }
 
-    if let Some(path) = &name_lookup.path {
+    if let Some(path) = &name_lookup.get_lookup_path() {
         let query_known_path = format!(
             "Name:\"{}\" AND DirectoryName:\"{}\"", 
-            &name_lookup.value.to_lowercase(), 
-            path.to_lowercase()
+            &name_lookup.value.to_lowercase(),
+            path
         );
         // Get hits
         let hits = index_reader.get_query_hits(&query_known_path, 1)
@@ -173,12 +187,15 @@ pub fn known_file_name(
     let start = Instant::now();
 
     if let Some(path) = name_lookup.path.as_mut() {
-        *path = path.replace(r"/", r"\");
         *path = path.trim_start_matches(r"\").to_string();
+        *path = path.trim_start_matches(r"/").to_string();
         *path = RE_LETTER.replace(&path, "").to_string();
     }
 
-    let result = known_lookup(&name_lookup, index_reader);
+    let result = known_lookup(
+        &name_lookup,
+        index_reader
+    );
 
     let duration = start.elapsed();
     info!("Time elapsed in known_file_name() is: {:?}", duration);
@@ -194,8 +211,8 @@ pub fn known_full_name(
 ) -> serde_json::Value {
     let start = Instant::now();
 
-    name_lookup.value = name_lookup.value.replace(r"/", r"\");
     name_lookup.value = name_lookup.value.trim_start_matches(r"\").to_string();
+    name_lookup.value = name_lookup.value.trim_start_matches(r"/").to_string();
     name_lookup.value = RE_LETTER.replace(&name_lookup.value, "").to_string();
 
     let name_lookup = name_lookup.into_inner()
@@ -219,8 +236,8 @@ pub fn lookup_file_name(
     let start = Instant::now();
 
     if let Some(path) = name_lookup.path.as_mut() {
-        *path = path.replace(r"/", r"\");
         *path = path.trim_start_matches(r"\").to_string();
+        *path = path.trim_start_matches(r"/").to_string();
         *path = RE_LETTER.replace(&path, "").to_string();
     }
     let result = resolve("Name", &name_lookup, index_reader);
@@ -239,7 +256,7 @@ pub fn lookup_full_name(
 ) -> serde_json::Value {
     let start = Instant::now();
 
-    name_lookup.value = name_lookup.value.replace(r"/", r"\");
+    name_lookup.value = name_lookup.value.trim_start_matches(r"/").to_string();
     name_lookup.value = name_lookup.value.trim_start_matches(r"\").to_string();
     name_lookup.value = RE_LETTER.replace(&name_lookup.value, "").to_string();
 

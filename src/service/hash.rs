@@ -59,7 +59,7 @@ fn resolve(
         }
     }
 
-    let mut return_value = json!(aggregation);
+    let return_value = json!(aggregation);
 
     return_value
 }

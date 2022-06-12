@@ -1,4 +1,5 @@
 use tantivy::TantivyError;
+use git2::Error as GitError;
 
 
 #[derive(Debug)]
@@ -8,6 +9,12 @@ pub struct VanillaError {
 impl VanillaError {
     pub fn from_message(message: String) -> Self {
         Self { message }
+    }
+}
+
+impl From<GitError> for VanillaError {
+    fn from(err: GitError) -> Self {
+        Self { message: format!("{:?}", err) }
     }
 }
 

@@ -1,14 +1,24 @@
 #[macro_use] extern crate rocket;
 use std::process::exit;
+use std::path::Path;
 use std::net::IpAddr;
 use std::str::FromStr;
-use rocket::{State, config};
+use std::path::PathBuf;
+use rocket::{State};
 use rocket::config::Config;
 use clap::{App, Arg, ArgMatches};
 use chrono::Local;
 use fern::Dispatch;
 use log::LevelFilter;
-use winvanilla::index::{WindowRefIndex, WindowsRefIndexReader};
+use tempfile::TempDir;
+use tantivy::{Index, IndexSettings};
+use tantivy::directory::MmapDirectory;
+use winvanilla::index::{
+    clone_vanilla_reference_repo,
+    generate_schema_from_vanilla,
+    WindowsRefIndexReader,
+    WindowRefIndexWriter
+};
 use winvanilla::service::path::{known_file_name, known_full_name, lookup_file_name, lookup_full_name};
 use winvanilla::service::hash::lookup_hash;
 
@@ -31,10 +41,10 @@ fn get_argument_parser<'a, 'b>() -> App<'a, 'b> {
     let source_arg = Arg::with_name("source")
         .short("-s")
         .long("source")
-        .required(true)
+        .required(false)
         .value_name("SOURCE")
         .takes_value(true)
-        .help("The source folder");
+        .help("The source folder (otherwise a temp folder will be used and clone the Vanilla repo.)");
 
     let index_arg = Arg::with_name("index_location")
         .short("-i")
@@ -43,6 +53,15 @@ fn get_argument_parser<'a, 'b>() -> App<'a, 'b> {
         .value_name("INDEX_LOCATION")
         .takes_value(true)
         .help("The index folder");
+    
+    let overall_memory_arg = Arg::with_name("overall_memory")
+        .short("-m")
+        .long("overall_memory")
+        .required(false)
+        .default_value("100000000")
+        .value_name("MEMORY_SIZE")
+        .takes_value(true)
+        .help("The total target memory usage that will be split between writer threads.");
 
     let address_arg = Arg::with_name("address")
         .short("-a")
@@ -75,6 +94,7 @@ fn get_argument_parser<'a, 'b>() -> App<'a, 'b> {
         .about("Lookup service for VanillaWindows References.")
         .arg(source_arg)
         .arg(index_arg)
+        .arg(overall_memory_arg)
         .arg(address_arg)
         .arg(port_arg)
         .arg(logging_arg)
@@ -140,8 +160,21 @@ fn rocket() -> _ {
 
     set_logging_level(&options);
 
-    let source = options.value_of("source")
-        .expect("No source folder was provided.");
+    let overall_memory: usize = options.value_of("overall_memory")
+        .map_or(100_000_000, |v| v.parse::<usize>().expect("Unable to parse overall_memory as usize!"));
+
+    let (source, _temp_dir): (PathBuf, Option<Box<TempDir>>) = options.value_of("source")
+        .map(|v|(PathBuf::from(v), None))
+        .unwrap_or_else(move ||{
+            let temp_dir = Box::new(
+                TempDir::new()
+                    .expect("Error creating temp dir for source.")
+            );
+            let path = temp_dir.path().to_path_buf();
+            (path, Some(temp_dir))
+        });
+
+    eprintln!("source: {}", &source.to_string_lossy());
 
     let port = options.value_of("port")
         .map(|v| v.parse::<u16>().expect("port cannot be parsed as u16."))
@@ -151,25 +184,60 @@ fn rocket() -> _ {
         .map(|v|IpAddr::from_str(v).expect("Could not parse IP Address."))
         .expect("No IpAddress provided.");
 
-    let index = options.value_of("index_location");
+    let index_location = options.value_of("index_location")
+        .expect("No index_location provided.");
+    let index_location = Path::new(index_location);
 
-    let index = WindowRefIndex::from_paths(
-        source, 
-        index, 
-        None
-    ).expect("Error creating WindowRefIndex.");
-        
-    let mut writer = index.get_writer()
-        .expect("Error indexing Windows Reference set.");
-
-    if !index.pre_existing {
-        writer.index()
-            .expect("Error creating index.");
+    if !index_location.exists() {
+        std::fs::create_dir_all(index_location)
+            .expect("Error creating index_location");
+    } else if !index_location.is_dir() {
+        eprintln!("{} is not a directory!", index_location.to_string_lossy());
+        exit(1);
     }
 
-    let reader = index.get_reader()
-        .expect("Error getting reader.");
+    match source.read_dir() {
+        Ok(r) => {
+            if r.count() == 0 {
+                // There are no files in this directory, we should clone the repo.
+                clone_vanilla_reference_repo(&source)
+                    .expect("Error cloning vanilla repo from folder that has no entries.");
+            }
+        },
+        Err(_e) => {
+            eprintln!("cloning vanilla repo");
+            clone_vanilla_reference_repo(&source)
+                .expect("Error cloning vanilla repo.");
+        }
+    }
+    eprintln!("init vanilla data");
 
+    let index = match Index::open_in_dir(index_location) {
+        Ok(i) => i,
+        Err(_e) => {
+            let schema = generate_schema_from_vanilla(&source)
+                .expect("Error generating schema from vanilla path.");
+
+            let index_directory = MmapDirectory::open(index_location)
+                .expect("Error opening index_location");
+            
+            let settings = IndexSettings::default();
+
+            let index = Index::create(index_directory, schema.clone(), settings)
+                .expect("Error opening or creating index.");
+
+            let mut writer = WindowRefIndexWriter::from_index(&source, index.clone(), overall_memory)
+                .expect("Error creating WindowRefIndexWriter!");
+        
+            writer.delete_all_documents(true).expect("Error deleting documents!");
+            writer.index_mt().expect("Error indexing documents!");
+
+            index
+        }
+    };
+
+    let reader = WindowsRefIndexReader::try_from(index)
+        .expect("Error creating WindowsRefIndexReader!");
 
     let mut config = Config::release_default();
     // Set port

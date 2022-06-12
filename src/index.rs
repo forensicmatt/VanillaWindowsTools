@@ -147,7 +147,9 @@ fn index_file_list(
             }
         }
 
-        index_writer.add_document(doc);
+        if let Err(err) = index_writer.add_document(doc) {
+            error!("Error adding document: {:?}", err);
+        };
     }
 
     info!(
@@ -355,7 +357,9 @@ impl WindowRefIndexWriter {
                     }
                 }
 
-                self.index_writer.add_document(doc);
+                if let Err(err) = self.index_writer.add_document(doc){
+                    error!("Error adding document: {:?}", err);
+                };
             }
             self.index_writer.commit()?;
 

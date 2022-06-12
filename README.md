@@ -3,6 +3,12 @@
 # VanillaWindowsTools
 Tools for parsing and playing with https://github.com/AndrewRathbun/VanillaWindowsReference data
 
+## Docker
+You can pre-download and generate the index and pass volumes to the container. Example:
+```
+docker run -v G:\Temp\vanilla-data:/vanilla/data -v G:\Temp\index:/vanilla/index -p 8000:8000 vanillawindowstools:latest
+```
+
 ## vanilla_service
 This service will run a web service which exposes a REST api for lookups.
 

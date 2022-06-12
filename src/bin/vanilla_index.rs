@@ -1,10 +1,13 @@
 #[macro_use] extern crate log;
 use std::process::exit;
+use std::path::Path;
 use chrono::Local;
 use fern::Dispatch;
 use log::LevelFilter;
 use clap::{App, Arg, ArgMatches};
-use winvanilla::index::WindowRefIndex;
+use tantivy::Index;
+use tantivy::directory::MmapDirectory;
+use winvanilla::index::{generate_schema_from_vanilla, WindowRefIndexWriter};
 
 #[cfg(all(windows))]
 #[global_allocator]
@@ -33,6 +36,15 @@ fn get_argument_parser<'a, 'b>() -> App<'a, 'b> {
         .takes_value(true)
         .help("The index folder");
 
+    let overall_memory_arg = Arg::with_name("overall_memory")
+        .short("-m")
+        .long("overall_memory")
+        .required(false)
+        .default_value("100000000")
+        .value_name("MEMORY_SIZE")
+        .takes_value(true)
+        .help("The total target memory usage that will be split between writer threads.");
+
     let logging_arg = Arg::with_name("logging")
         .long("logging")
         .value_name("LOGGING LEVEL")
@@ -47,6 +59,7 @@ fn get_argument_parser<'a, 'b>() -> App<'a, 'b> {
         .about("Index VanillaWindowsReference files.")
         .arg(source_arg)
         .arg(index_arg)
+        .arg(overall_memory_arg)
         .arg(logging_arg)
 }
 
@@ -106,17 +119,35 @@ fn main() {
 
     set_logging_level(&options);
 
+    let overall_memory: usize = options.value_of("overall_memory")
+        .map_or(100_000_000, |v| v.parse::<usize>().expect("Unable to parse overall_memory as usize!"));
+
     let source = options.value_of("source")
         .expect("No source folder was provided.");
 
-    let index = options.value_of("index_location");
+    let index_location = options.value_of("index_location")
+        .expect("No index_location folder was provided.");
+    let index_location = Path::new(index_location);
 
-    let index = WindowRefIndex::from_paths(
-        source, 
-        index, 
-        None
-    ).unwrap();
+    let schema = generate_schema_from_vanilla(source)
+        .expect("Error generating schema from vanilla path.");
 
-    let mut writer = index.get_writer().expect("Error getting writer.");
-    writer.index().unwrap();
+    if !index_location.exists() {
+        std::fs::create_dir_all(index_location)
+            .expect("Error creating index_location");
+    } else if !index_location.is_dir() {
+        eprintln!("{} is not a directory!", index_location.to_string_lossy());
+    }
+
+    let index_directory = MmapDirectory::open(index_location)
+        .expect("Error opening index_location");
+
+    let index = Index::open_or_create(index_directory, schema)
+        .expect("Error opening or creating index.");
+
+    let mut writer = WindowRefIndexWriter::from_index(source, index, overall_memory)
+        .expect("Error creating WindowRefIndexWriter!");
+
+    writer.delete_all_documents(true).expect("Error deleting documents!");
+    writer.index_mt().expect("Error indexing documents!");
 }
